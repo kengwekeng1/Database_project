@@ -8,19 +8,23 @@ Express backend starter for the Mini TaskFlow group project.
 npm install
 ```
 
-## 2. Configure environment
+## 2. Configure Firebase
 
-Copy `.env.example` to `.env`, then enter your own MySQL connection details and a long random `SESSION_SECRET`. Never commit `.env`.
+Copy `.env.example` to `.env` and set `FIREBASE_PROJECT_ID`. Leave `FIRESTORE_DATABASE_ID` blank to use `(default)`, or enter the Firestore database ID supplied by your team.
 
-## 3. Database tables expected
+For local development, create a Firebase service account with Firestore access, download its JSON key outside this repository, and set `GOOGLE_APPLICATION_CREDENTIALS` to its path. On Windows, use forward slashes in the path. Never commit or share the key or `.env` file. Google Application Default Credentials can also be used instead of a service-account key.
 
-Coordinate with Person 4 before running the API. These routes expect the following columns:
+## 3. Firestore collections
 
-- `users`: `user_id`, `username`, `email` (unique), `password_hash`
-- `projects`: `project_id`, `project_name`, `description`, `deadline` (DATE, NOT NULL), `join_code` (unique), `owner_id`, `created_at`
-- `project_members`: `project_id`, `user_id`, `joined_at` (composite primary key on project_id + user_id)
+The API uses these collections and documents:
 
-The database and session table must be created in MySQL first. The session store creates its own `sessions` table automatically when the database user has permission.
+- `users/{userId}` stores username, email, password hash, and creation time.
+- `userEmails/{emailHex}` maps a normalized email to its user ID to enforce unique registration.
+- `projects/{projectId}` stores project details and member IDs.
+- `projects/{projectId}/members/{userId}` stores each member and their join time.
+- `joinCodes/{code}` maps invite codes to project IDs.
+
+Firestore creates collections and documents as the API writes them. Confirm the collection structure with your team before connecting to shared project data.
 
 ## 4. Run
 
@@ -30,7 +34,7 @@ npm run dev
 
 API base URL: `http://localhost:3000/api`
 
-Health check: `GET http://localhost:3000/api/health`
+Health check: `GET http://localhost:3000/api/health` (checks Firestore connectivity)
 
 ## 5. Authentication endpoints
 
@@ -39,7 +43,7 @@ Health check: `GET http://localhost:3000/api/health`
 - `POST /api/logout`
 - `GET /api/me`
 
-Authentication uses a server-side session cookie. When testing in Postman, keep cookies enabled between requests.
+Authentication uses a server-side session cookie. For local development, sessions use Express's in-memory store and are cleared when the server restarts. When testing in Postman, keep cookies enabled between requests. Use a persistent session store before deploying to production.
 
 ## 6. Project endpoints (login required)
 
@@ -52,7 +56,7 @@ Authentication uses a server-side session cookie. When testing in Postman, keep 
 
 ## Notes for the team
 
-- Person 4 owns the database schema and Task API. Confirm exact column names and types with them before integration.
+- Confirm the Firestore database ID and collection structure with your team before integration.
 - Project deadline is mandatory. Task due-date validation against the project deadline must also be enforced by the Task API.
 - The project update route currently checks that the new project deadline is not in the past. Person 4 should add a check that it does not move earlier than any existing task due date.
 - The app is configured for same-origin frontend/API usage. If the frontend is hosted on a different origin, coordinate cookie and CORS settings before changing this setup.

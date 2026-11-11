@@ -2,7 +2,6 @@ require('dotenv').config();
 
 const express = require('express');
 const session = require('express-session');
-const MySQLStoreFactory = require('express-mysql-session');
 const db = require('./db');
 
 const authRoutes = require('./routes/auth.routes');
@@ -10,24 +9,13 @@ const projectRoutes = require('./routes/project.routes');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
-const MySQLStore = MySQLStoreFactory(session);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-const sessionStore = new MySQLStore({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  createDatabaseTable: true,
-});
-
 app.use(session({
   name: 'taskflow.sid',
   secret: process.env.SESSION_SECRET || 'change-this-development-secret',
-  store: sessionStore,
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -40,8 +28,8 @@ app.use(session({
 
 app.get('/api/health', async (req, res, next) => {
   try {
-    await db.query('SELECT 1');
-    res.json({ status: 'ok', message: 'Mini TaskFlow API and database are running.' });
+    await db.collection('_health').doc('connectivity-check').get();
+    res.json({ status: 'ok', message: 'Mini TaskFlow API and Firestore are running.' });
   } catch (error) {
     next(error);
   }

@@ -23,18 +23,26 @@ router.post('/register', async (req, res, next) => {
       return res.status(400).json({ message: 'Password must be at least 8 characters.' });
     }
 
-    const [existing] = await db.execute('SELECT user_id FROM users WHERE email = ? LIMIT 1', [email]);
-    if (existing.length) {
+    const passwordHash = await bcrypt.hash(password, 12);
+    const userRef = db.collection('users').doc();
+    const emailRef = db.collection('userEmails').doc(Buffer.from(email).toString('hex'));
+    const created = await db.runTransaction(async (transaction) => {
+      const existing = await transaction.get(emailRef);
+      if (existing.exists) return false;
+      transaction.create(userRef, {
+        username,
+        email,
+        password_hash: passwordHash,
+        created_at: new Date().toISOString(),
+      });
+      transaction.create(emailRef, { user_id: userRef.id });
+      return true;
+    });
+    if (!created) {
       return res.status(409).json({ message: 'An account with this email already exists.' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
-    const [result] = await db.execute(
-      'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',
-      [username, email, passwordHash]
-    );
-
-    req.session.user = { user_id: result.insertId, username, email };
+    req.session.user = { user_id: userRef.id, username, email };
     res.status(201).json({ message: 'Registration successful.', user: req.session.user });
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') {
@@ -53,15 +61,22 @@ router.post('/login', async (req, res, next) => {
       return res.status(400).json({ message: 'Email and password are required.' });
     }
 
-    const [users] = await db.execute(
-      'SELECT user_id, username, email, password_hash FROM users WHERE email = ? LIMIT 1',
-      [email]
-    );
-    if (!users.length || !(await bcrypt.compare(password, users[0].password_hash))) {
+    const emailRef = db.collection('userEmails').doc(Buffer.from(email).toString('hex'));
+    const emailSnapshot = await emailRef.get();
+    if (!emailSnapshot.exists) {
       return res.status(401).json({ message: 'Incorrect email or password.' });
     }
 
-    const user = { user_id: users[0].user_id, username: users[0].username, email: users[0].email };
+    const userSnapshot = await db.collection('users').doc(emailSnapshot.data().user_id).get();
+    if (!userSnapshot.exists) {
+      return res.status(401).json({ message: 'Incorrect email or password.' });
+    }
+    const userData = userSnapshot.data();
+    if (!(await bcrypt.compare(password, userData.password_hash))) {
+      return res.status(401).json({ message: 'Incorrect email or password.' });
+    }
+
+    const user = { user_id: userSnapshot.id, username: userData.username, email: userData.email };
     req.session.regenerate((error) => {
       if (error) return next(error);
       req.session.user = user;
