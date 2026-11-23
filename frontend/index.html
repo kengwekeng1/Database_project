@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mini TaskFlow · งานกลุ่ม</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./js/app.js"></script>
+</head>
+<body>
+  <section id="auth" class="auth card" hidden>
+    <p class="brand">✓ Mini TaskFlow</p>
+    <h1 id="auth-title">เข้าสู่ระบบ</h1>
+    <form id="auth-form">
+      <label id="username-field" hidden>ชื่อผู้ใช้<input name="username" maxlength="50" autocomplete="username" disabled></label>
+      <label>อีเมล<input name="email" type="email" maxlength="255" autocomplete="email" required></label>
+      <label>รหัสผ่าน<input name="password" type="password" autocomplete="current-password" required></label>
+      <button type="submit" id="auth-submit" class="primary">เข้าสู่ระบบ</button>
+    </form>
+    <button id="auth-switch" class="link">สมัครสมาชิก</button>
+    <p id="demo-tip" class="muted" hidden>บัญชีทดลอง team1@example.test หรือ team2@example.test รหัสผ่าน demo1234</p>
+  </section>
+  <div id="app" class="layout" hidden>
+    <aside>
+      <p class="brand">✓ Mini TaskFlow</p>
+      <nav aria-label="เมนูงาน">
+        <button id="my-tasks">☑ งานของฉัน</button>
+        <p class="eyebrow">โปรเจกต์ของฉัน</p>
+        <div id="projects"></div>
+      </nav>
+      <div class="sidebar-actions">
+        <button id="create-project" class="primary">＋ สร้างโปรเจกต์</button>
+        <button id="join-project">เข้าร่วมด้วยรหัส</button>
+      </div>
+      <div class="profile"><span id="username"></span><button id="logout">ออกจากระบบ</button></div>
+    </aside>
+    <main>
+      <header class="page-header">
+        <div>
+          <p id="view-label" class="eyebrow">รายการงาน</p>
+          <h1 id="view-title">งานของฉัน</h1>
+          <p id="project-meta" class="muted" hidden></p>
+          <p id="project-description" class="muted" hidden></p>
+        </div>
+        <button id="add-task" class="primary" hidden>＋ เพิ่มงาน</button>
+      </header>
+      <section class="card tasks" aria-labelledby="task-heading">
+        <div class="task-header"><h2 id="task-heading">รายการงาน</h2><button id="refresh" class="link">รีเฟรช</button></div>
+        <p id="view-status" class="muted" role="status"></p>
+        <ul id="task-list"></ul>
+      </section>
+    </main>
+  </div>
+  <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+  <dialog id="editor" aria-labelledby="dialog-title">
+    <form id="editor-form">
+      <h2 id="dialog-title"></h2>
+      <div id="fields"></div>
+      <p id="editor-error" class="error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button type="button" id="cancel">ยกเลิก</button>
+        <button type="submit" class="primary" id="editor-submit">บันทึก</button>
+      </div>
+    </form>
+  </dialog>
+
+  <template id="project-fields">
+    <label>ชื่อโปรเจกต์ <span class="required">*</span><input name="project_name" required maxlength="150"></label>
+    <label>รายละเอียด<textarea name="description" rows="3"></textarea></label>
+    <label>วันกำหนดส่งโปรเจกต์ <span class="required">*</span><input name="deadline" type="date" required></label>
+  </template>
+  <template id="join-fields">
+    <label>รหัสเข้าร่วม <span class="required">*</span><input name="join_code" required maxlength="12" autocapitalize="characters"></label>
+  </template>
+  <template id="task-fields">
+    <label>ชื่องาน <span class="required">*</span><input name="title" required maxlength="150"></label>
+    <label>รายละเอียด<textarea name="description" rows="3"></textarea></label>
+    <label>ผู้รับผิดชอบ<select name="assigned_to"><option value="">ยังไม่มอบหมาย</option></select></label>
+    <label>วันส่งงานย่อย<input name="due_date" type="date"></label>
+  </template>
+</body>
+</html>
