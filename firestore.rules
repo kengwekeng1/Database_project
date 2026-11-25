@@ -1,0 +1,110 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function memberPath(projectId, uid) {
+      return /databases/$(database)/documents/project_members/$(projectId + '_' + uid);
+    }
+    function isMember(projectId) {
+      return signedIn() && exists(memberPath(projectId, request.auth.uid));
+    }
+    function hasProfile() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function shortText(value, maximum) {
+      return value is string && value.size() > 0 && value.size() <= maximum;
+    }
+
+    match /users/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list: if false;
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasAll(['user_id', 'username', 'email', 'created_at'])
+        && request.resource.data.keys().hasOnly(['user_id', 'username', 'email', 'created_at'])
+        && request.resource.data.user_id == uid
+        && request.resource.data.username is string
+        && request.resource.data.username.matches('^[a-z0-9_]{3,24}$')
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.created_at == request.time
+        && getAfter(/databases/$(database)/documents/usernames/$(request.resource.data.username)).data.user_id == uid;
+      // Account/profile editing is outside this prototype. Keep identity immutable.
+      allow update, delete: if false;
+    }
+
+    // Supporting unique index, not a fifth business entity. It contains no email.
+    match /usernames/{username} {
+      allow read: if signedIn();
+      allow create: if signedIn() && username.matches('^[a-z0-9_]{3,24}$')
+        && request.resource.data.keys().hasOnly(['user_id'])
+        && request.resource.data.user_id == request.auth.uid
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.username == username;
+      allow update, delete: if false;
+    }
+
+    match /projects/{projectId} {
+      function validProject() {
+        let d = request.resource.data;
+        return d.keys().hasAll(['project_id', 'project_name', 'description', 'deadline', 'join_code', 'owner_id', 'created_at'])
+          && d.keys().hasOnly(['project_id', 'project_name', 'description', 'deadline', 'join_code', 'owner_id', 'created_at'])
+          && d.project_id == projectId
+          && projectId.matches('^[A-Za-z0-9]{20}$')
+          && shortText(d.project_name, 100)
+          && d.description is string && d.description.size() <= 2000
+          && d.deadline is timestamp && d.created_at is timestamp
+          && d.join_code == projectId && d.owner_id is string;
+      }
+      allow read: if isMember(projectId);
+      allow create: if hasProfile() && validProject()
+        && request.resource.data.owner_id == request.auth.uid
+        && request.resource.data.created_at == request.time
+        && getAfter(memberPath(projectId, request.auth.uid)).data.user_id == request.auth.uid
+        && getAfter(memberPath(projectId, request.auth.uid)).data.project_id == projectId;
+      allow update: if isMember(projectId) && resource.data.owner_id == request.auth.uid
+        && validProject()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['project_name', 'description', 'deadline']);
+      // Do not leave orphaned tasks/members. Project deletion needs a separate cleanup flow.
+      allow delete: if false;
+    }
+
+    match /project_members/{memberId} {
+      // Missing-document reads are needed for an idempotent join transaction.
+      allow get: if signedIn() && (
+        !exists(/databases/$(database)/documents/project_members/$(memberId))
+        || resource.data.user_id == request.auth.uid || isMember(resource.data.project_id));
+      allow list: if signedIn() && (resource.data.user_id == request.auth.uid || isMember(resource.data.project_id));
+      allow create: if hasProfile()
+        && request.resource.data.keys().hasAll(['project_id', 'user_id', 'joined_at'])
+        && request.resource.data.keys().hasOnly(['project_id', 'user_id', 'joined_at'])
+        && request.resource.data.project_id is string
+        && request.resource.data.project_id.matches('^[A-Za-z0-9]{20}$')
+        && request.resource.data.user_id == request.auth.uid
+        && memberId == request.resource.data.project_id + '_' + request.auth.uid
+        && request.resource.data.joined_at == request.time
+        // Knowing this random project ID is the invitation. No project listing is public.
+        && getAfter(/databases/$(database)/documents/projects/$(request.resource.data.project_id)).data.join_code == request.resource.data.project_id;
+      // Membership removal needs assignee cleanup; deliberately not exposed by this UI.
+      allow update, delete: if false;
+    }
+
+    match /tasks/{taskId} {
+      function validTask() {
+        let d = request.resource.data;
+        return d.keys().hasAll(['task_id', 'project_id', 'assigned_to', 'title', 'description', 'due_date', 'is_completed', 'created_at'])
+          && d.keys().hasOnly(['task_id', 'project_id', 'assigned_to', 'title', 'description', 'due_date', 'is_completed', 'created_at'])
+          && d.task_id == taskId && d.project_id is string
+          && shortText(d.title, 120)
+          && d.description is string && d.description.size() <= 2000
+          && d.due_date is timestamp && d.created_at is timestamp
+          && d.is_completed is bool
+          && (d.assigned_to == null || (d.assigned_to is string && exists(memberPath(d.project_id, d.assigned_to))));
+      }
+      allow read: if isMember(resource.data.project_id);
+      allow create: if hasProfile() && validTask() && isMember(request.resource.data.project_id)
+        && request.resource.data.created_at == request.time;
+      allow update: if isMember(resource.data.project_id) && validTask()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'due_date', 'assigned_to', 'is_completed']);
+      allow delete: if isMember(resource.data.project_id);
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
