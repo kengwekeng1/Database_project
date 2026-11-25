@@ -11,19 +11,31 @@ const taskRoutes = require('./routes/task.routes');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
+const onRender = process.env.RENDER === 'true';
+const production = process.env.NODE_ENV === 'production';
+const sessionSecret = process.env.SESSION_SECRET;
+
+if (production && (!sessionSecret || sessionSecret.length < 32 ||
+    sessionSecret === 'replace-this-with-a-long-random-secret')) {
+  throw new Error('Set a random SESSION_SECRET of at least 32 characters for production.');
+}
+if (production && (process.env.FIRESTORE_EMULATOR_HOST || process.env.FIREBASE_AUTH_EMULATOR_HOST)) {
+  throw new Error('Firebase emulators must be disabled in production.');
+}
+if (onRender) app.set('trust proxy', 1);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 app.use(session({
   name: 'taskflow.sid',
-  secret: process.env.SESSION_SECRET || 'change-this-development-secret',
+  secret: sessionSecret || 'change-this-development-secret',
   resave: false,
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: production,
     maxAge: 1000 * 60 * 60 * 24,
   },
 }));
@@ -55,6 +67,6 @@ app.use((error, req, res, next) => {
   res.status(500).json({ message: 'Internal server error.' });
 });
 
-app.listen(PORT, '127.0.0.1', () => {
-  console.log(`Mini TaskFlow API listening at http://localhost:${PORT}`);
+app.listen(PORT, onRender ? '0.0.0.0' : '127.0.0.1', () => {
+  console.log(`Mini TaskFlow listening on port ${PORT}`);
 });

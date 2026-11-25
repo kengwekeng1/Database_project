@@ -43,6 +43,27 @@ npm.cmd start
 
 หน้าเว็บเรียกข้อมูลผ่าน Express และ Firebase Admin SDK ให้จำกัดการเข้าฐานข้อมูลฝั่ง Client ตามการตั้งค่าของโปรเจกต์จริง ไฟล์ `firestore.rules` ที่มากับ Emulator เป็นไฟล์อ้างอิงจาก branch ฐานข้อมูลของทีม อย่า deploy ไฟล์นี้กับโปรเจกต์จริง เพราะรูปแบบข้อมูลของไฟล์นั้นต่างจากที่ Express ใช้ เวอร์ชันนี้ยังไม่ได้เปิดการยืนยันอีเมลและยังไม่มีการผูกบัญชี Express เดิมเข้ากับบัญชี Google
 
+## เปิดเว็บไซต์บน Render
+
+สร้าง **Web Service** จาก GitHub โดยเลือก branch ที่มีการตั้งค่าสำหรับ Render ใช้ Node.js, Build Command `npm ci --omit=dev` และ Start Command `npm start` ใช้ `/` เป็น Health Check Path ของโฮสต์ และเปิด `/api/health` เองเมื่อต้องการตรวจ Firestore
+
+ตั้งค่าที่ **Environment** ใน Render
+
+| ชื่อตัวแปร | ค่า |
+| --- | --- |
+| `NODE_ENV` | `production` |
+| `FIREBASE_PROJECT_ID` | `projectId` ของ Firebase Web App |
+| `FIREBASE_WEB_API_KEY` | `apiKey` ของ Firebase Web App |
+| `FIREBASE_WEB_AUTH_DOMAIN` | `authDomain` ของ Firebase Web App |
+| `SESSION_SECRET` | ค่าสุ่มอย่างน้อย 32 ตัวอักษร |
+| `GOOGLE_APPLICATION_CREDENTIALS` | `/etc/secrets/firebase-admin.json` |
+
+ใน **Secret Files** ให้ตั้งไฟล์ชื่อ `firebase-admin.json` โดยใช้ JSON ของ Service Account สำหรับโปรเจกต์นั้น เก็บคีย์และ `.env` นอก GitHub สำหรับฐานข้อมูลชื่อ `(default)` เว้น `FIRESTORE_DATABASE_ID` ได้ และให้ Render กำหนด `PORT` เอง
+
+เมื่อได้ URL `https://...onrender.com` ให้เพิ่มเฉพาะชื่อโฮสต์ใน Firebase **Authentication → Settings → Authorized domains** จากนั้นเปิด `/api/health` ให้ได้ `status: ok` แล้วลอง Google Login และสร้างงานจาก URL จริง
+
+เวอร์ชันเดโมเก็บเซสชันในหน่วยความจำของ Express เมื่อ Render รีสตาร์ตหรือพักบริการ ผู้ใช้ต้องล็อกอินใหม่ ข้อมูลงานและโปรเจกต์ยังอยู่ใน Firestore
+
 ## โครงสร้างข้อมูลที่บันทึก
 
 | ชุดข้อมูลหลัก | ตำแหน่ง | ความสัมพันธ์ |
